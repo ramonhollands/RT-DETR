@@ -31,16 +31,19 @@ def main(args, ):
     # NOTE load train mode state -> convert to deploy mode
     cfg.model.load_state_dict(state)
 
+    image_sizes = args.image_sizes.split(' ')
+    image_width = int(image_sizes[0])
+    image_height = int(image_sizes[1])
+
     class Model(nn.Module):
         def __init__(self, ) -> None:
             super().__init__()
             self.model = cfg.model.deploy()
             self.postprocessor = cfg.postprocessor.deploy()
-            print(self.postprocessor.deploy_mode)
 
-        def forward(self, images, orig_target_sizes):
+        def forward(self, images):
             outputs = self.model(images)
-            return self.postprocessor(outputs, orig_target_sizes)
+            return self.postprocessor(outputs, [image_width, image_height])
 
     # # install package coremltools if not installed
     # import subprocess
@@ -83,9 +86,6 @@ def main(args, ):
             'orig_target_sizes': {0: 'N'}
         }
 
-    image_sizes = args.image_sizes.split(' ')
-    image_width = int(image_sizes[0])
-    image_height = int(image_sizes[1])
 
     data = torch.rand(1, 3, image_width, image_height)
     size = torch.tensor([[image_width, image_height]])
