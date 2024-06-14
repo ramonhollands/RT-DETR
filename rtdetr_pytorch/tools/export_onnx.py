@@ -43,60 +43,62 @@ def main(args, ):
 
         def forward(self, images):
             outputs = self.model(images)
-            return self.postprocessor(outputs, [image_width, image_height])
+            orig_target_sizes = torch.tensor([image_width, image_height], dtype=torch.int32)
+            orig_target_sizes = orig_target_sizes.to(images.device)
+            return self.postprocessor(outputs, orig_target_sizes)
 
     # # install package coremltools if not installed
-    # import subprocess
-    # import sys
+    import subprocess
+    import sys
 
-    # try:
-    #     import coremltools
-    # except ImportError:
-    #     print("coremltools is not installed. Installing now...")
-    #     subprocess.check_call([sys.executable, "-m", "pip", "install", "coremltools"])
-    #     import coremltools
-    #     print("coremltools has been installed successfully.")
+    try:
+        import coremltools
+    except ImportError:
+        print("coremltools is not installed. Installing now...")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", "coremltools"])
+        import coremltools
+        print("coremltools has been installed successfully.")
 
     model = Model()
     model.eval()
 
-    # example_input = (torch.rand(1, 3, 640, 640), torch.tensor([[640, 640]]))
-    # traced_model = torch.jit.trace(model, example_input)
-    # import coremltools as ct
-    # # Convert the model
-    # example_images = torch.rand(1, 3, 640, 640)  # Example input size for images
-    # example_orig_target_sizes = torch.tensor([[640, 640]])  # Example target sizes
-    # input_images = ct.ImageType(name="images", shape=example_images.shape)
-    # input_orig_target_sizes = ct.TensorType(name="orig_target_sizes", shape=example_orig_target_sizes.shape)
+    example_input = (torch.rand(1, 3, image_height, image_width, dtype=torch.float32)),
+    traced_model = torch.jit.trace(model, example_input)
 
-    # # Convert the model
-    # mlmodel = ct.convert(
-    #     traced_model,
-    #     inputs=[input_images, input_orig_target_sizes]
-    # )
+    import coremltools as ct
+    example_images = torch.rand(1, 3, image_height, image_width, dtype=torch.float32)  # Example input size for images
+    input_images = ct.TensorType(name="images", shape=example_images.shape, dtype=np.float32)
+    
+    try:
+        # Convert the model
+        mlmodel = ct.convert(
+            traced_model,
+            inputs=[input_images]
+        )
 
-    # # Save the Core ML model
-    # mlmodel.save("best.mlmodel")
+        # Save the Core ML model
+        mlmodel.save("best.mlmodel")
+
+    except Exception as e:
+        print(e)
 
     dynamic_axes = None
 
     if args.dynamic:
         dynamic_axes = {
             'images': {0: 'N', },
-            'orig_target_sizes': {0: 'N'}
         }
 
 
     data = torch.rand(1, 3, image_width, image_height)
-    size = torch.tensor([[image_width, image_height]])
 
     print('Using image size:', image_width, image_height)
 
     torch.onnx.export(
         model,
-        (data, size),
+        data,
         args.file_name,
-        input_names=['images', 'orig_target_sizes'],
+        input_names=['images'],
         output_names=['labels', 'boxes', 'scores'],
         dynamic_axes=dynamic_axes,
         opset_version=16,
@@ -145,7 +147,7 @@ def main(args, ):
         output = sess.run(
         # output_names=['labels', 'boxes', 'scores'],
         output_names=None,
-        input_feed={'images': input_data, "orig_target_sizes": [[640,640]]}
+        input_feed={'images': input_data}
     )
 
     import time
